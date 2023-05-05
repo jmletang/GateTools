@@ -18,6 +18,7 @@ from .gauss_filter import *
 from .image_resize import *
 from .dvh import *
 from .merge_root import *
+from .merge_root_pgdb import *
 from .pet_helpers import *
 from .morpho_math import *
 from .image_to_dicom_rt_struct import *

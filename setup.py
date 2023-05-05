@@ -56,6 +56,7 @@ setuptools.setup(
         'bin/gt_image_to_dicom_rt_struct',
         'bin/gt_dvh',
         'bin/gt_merge_root',
+        'bin/gt_merge_root_pgdb',
         'bin/gt_morpho_math',
 
         'bin/gt_dicom_rt_struct_to_image',

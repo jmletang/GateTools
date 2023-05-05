@@ -1,0 +1,135 @@
+# -----------------------------------------------------------------------------
+#   Copyright (C): OpenGATE Collaboration
+#   This software is distributed under the terms
+#   of the GNU Lesser General  Public Licence (LGPL)
+#   See LICENSE.md for further details
+# -----------------------------------------------------------------------------
+
+"""
+
+This module provides a function to crop image
+
+"""
+
+# -----------------------------------------------------------------------------
+#   Copyright (C): OpenGATE Collaboration
+#   This software is distributed under the terms
+#   of the GNU Lesser General  Public Licence (LGPL)
+#   See LICENSE.md for further details
+# -----------------------------------------------------------------------------
+
+
+import gatetools as gt
+import numpy as np
+import tqdm
+import logging
+logger=logging.getLogger(__name__)
+
+def unicity(root_keys):
+    """
+    Return an array containing the keys of the root file only one (without the version number)
+    """
+    root_array = []
+    for key in root_keys:
+        name = key.encode().decode("utf-8").split(";")[0]
+        #print(f"{key} -- {name}")
+        if not name in root_array:
+            root_array.append(name)
+    return(root_array)
+
+def merge_root_pgdb(rootfiles, outputfile, incrementRunId=False):
+    """
+    Merge root files in output files
+    """
+    try:
+        import uproot4 as uproot
+    except:
+        print("uproot4 is mandatory to merge root file. Please, do:")
+        print("pip install uproot4")
+
+    out = uproot.recreate(outputfile)
+    
+    #Previous ID values to be able to increment runIn or EventId
+    previousId = {}
+
+    #create the dict reading all input root files
+    trees = {}
+    hists = {}
+    pbar = tqdm.tqdm(total = len(rootfiles))
+    for file in rootfiles:
+        root = uproot.open(file)
+        root_keys = unicity(root.keys())
+
+        print(f"Keys: {root_keys}")
+        
+        for tree in root_keys:
+            print(f"Tree: {tree}")
+            if hasattr(root[tree], 'keys'):
+                if not tree in trees:
+                    trees[tree] = {}
+                    trees[tree]["rootDictType"] = {}
+                    trees[tree]["rootDictValue"] = {}
+                    hists[tree] = {}
+                    hists[tree]["rootDictType"] = {}
+                    hists[tree]["rootDictValue"] = {}
+                    previousId[tree] = {}
+                for branch in root[tree].keys():
+                    print(f"Branch: {branch}")
+                    if hasattr(root[tree], 'classes'):
+                        array = root[tree][branch].values
+                        if len(array) > 0:
+                            if type(array[0]) is type(b'c'):
+                                print("11")
+                                array = np.array([0 for xi in array])
+                            if not branch in hists[tree]["rootDictType"]:
+                                print("12")
+                                hists[tree]["rootDictType"][branch] = root[tree][branch]
+                                hists[tree]["rootDictValue"][branch] = np.zeros(array.shape)
+                            if (not incrementRunId and branch.decode('utf-8').startswith('eventID')) or (incrementRunId and branch.decode('utf-8').startswith('runID')):
+                                print("13")
+                                if not branch in previousId[tree]:
+                                    previousId[tree][branch] = 0
+                                array += previousId[tree][branch]
+                                previousId[tree][branch] = max(array) +1
+                            hists[tree]["rootDictValue"][branch] += array
+                    elif not isinstance(root[tree],uproot.reading.ReadOnlyDirectory):
+                        array = root[tree].array(branch)
+                        if len(array) > 0 and not (type(array[0]) is type(np.ndarray(2,))):
+                            if type(array[0]) is type(b'c'):
+                                print("21")
+                                array = np.array([0 for xi in array])
+                            if not branch in trees[tree]["rootDictType"]:
+                                print("22")
+                                trees[tree]["rootDictType"][branch] = type(array[0])
+                                trees[tree]["rootDictValue"][branch] = np.array([])
+                            if (not incrementRunId and branch.decode('utf-8').startswith('eventID')) or (incrementRunId and branch.decode('utf-8').startswith('runID')):
+                                print("23")
+                                if not branch in previousId[tree]:
+                                    previousId[tree][branch] = 0
+                                array += previousId[tree][branch]
+                                previousId[tree][branch] = max(array) +1
+                            trees[tree]["rootDictValue"][branch] = np.append(trees[tree]["rootDictValue"][branch], array)
+        pbar.update(1)
+    pbar.close()
+
+    #Set the dict in the output root file
+    for tree in trees:
+        if not trees[tree]["rootDictValue"] == {} or not trees[tree]["rootDictType"] == {}:
+            out[tree] = uproot.newtree(trees[tree]["rootDictType"])
+            out[tree].extend(trees[tree]["rootDictValue"])
+    for hist in hists:
+        if not hists[hist]["rootDictValue"] == {} or not hists[hist]["rootDictType"] == {}:
+            
+            for branch in hists[hist]["rootDictValue"]:
+                print(f"{branch}")
+                if not (type(hists[tree]["rootDictValue"][branch][0]) is type(np.ndarray(2,))):
+                    for i in range(len(hists[tree]["rootDictValue"][branch])):
+                        hists[tree]["rootDictType"][branch][i] = hists[tree]["rootDictValue"][branch][i]
+                else:
+                    for i in range(len(hists[tree]["rootDictValue"][branch])):
+                        hists[tree]["rootDictType"][branch].values[i] = hists[tree]["rootDictValue"][branch][i]
+                out[branch] = hists[tree]["rootDictType"][branch]
+
+
+
+#####################################################################################
