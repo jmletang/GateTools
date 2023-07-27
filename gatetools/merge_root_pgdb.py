@@ -40,7 +40,7 @@ def unicity(root_keys):
             root_array.append(name)
     return(root_array)
 
-def merge_root(rootfiles, outputfile, incrementRunId=False):
+def merge_root_pgdb(rootfiles, outputfile, incrementRunId=False):
     """
     Merge root files in output files
     """
